@@ -173,11 +173,13 @@ echo ""
 # stdin as the curl pipe (already drained), so without this redirect `boost init`
 # would see EOF on the terms prompt. Go also opens /dev/tty as a fallback.
 run_boost_init() {
-  if [ -r /dev/tty ]; then
-    boost init </dev/tty
-  else
-    boost init
+  if boost init --accept-terms </dev/null 2>/dev/null; then
+    return 0
   fi
+  if [ -r /dev/tty ] 2>/dev/null; then
+    boost init --accept-terms </dev/tty 2>/dev/null && return 0
+  fi
+  boost init --accept-terms </dev/null || true
 }
 if $INSTALL_DIR_ON_PATH && command -v boost >/dev/null 2>&1; then
   run_boost_init
