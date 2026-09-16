@@ -44,20 +44,43 @@ try {
             throw 'curl.exe is required for remote installs (included with Windows 10 1803+)'
         }
 
+        $Archive = 'boost-windows-amd64.zip'
         $Tag = $From
         if ($From -eq 'latest') {
-            # Mirror install.sh: curl -fsSLI … -w '%{url_effective}' on releases/latest.
-            $tagUrl = & curl.exe -fsSLI -o NUL -w '%{url_effective}' "https://github.com/$Repo/releases/latest"
-            if ($LASTEXITCODE -ne 0 -or -not $tagUrl) {
-                throw 'could not resolve latest release tag'
+            $Tag = $null
+            try {
+                $apiHeaders = @{ Accept = 'application/vnd.github+json' }
+                if ($env:GITHUB_TOKEN) {
+                    $apiHeaders['Authorization'] = "Bearer $($env:GITHUB_TOKEN)"
+                } elseif ($env:GH_TOKEN) {
+                    $apiHeaders['Authorization'] = "Bearer $($env:GH_TOKEN)"
+                }
+                $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases?per_page=30" -Headers $apiHeaders
+                foreach ($rel in $releases) {
+                    foreach ($asset in $rel.assets) {
+                        if ($asset.name -eq $Archive) {
+                            $Tag = $rel.tag_name
+                            break
+                        }
+                    }
+                    if ($Tag) { break }
+                }
+            } catch {
+                $Tag = $null
             }
-            $Tag = ($tagUrl -split '/tag/')[-1]
             if (-not $Tag) {
-                throw 'could not resolve latest release tag'
+                # Fallback: releases/latest redirect (desktop-only tags may 404 on CLI archives).
+                $tagUrl = & curl.exe -fsSLI -o NUL -w '%{url_effective}' "https://github.com/$Repo/releases/latest"
+                if ($LASTEXITCODE -ne 0 -or -not $tagUrl) {
+                    throw 'could not resolve latest release tag'
+                }
+                $Tag = ($tagUrl -split '/tag/')[-1]
+                if (-not $Tag) {
+                    throw 'could not resolve latest release tag'
+                }
             }
         }
 
-        $Archive = 'boost-windows-amd64.zip'
         $GithubUrl = "https://github.com/$Repo/releases/download/$Tag/$Archive"
         Write-Host "→ Downloading $Archive ($Tag)"
         $ZipPath = Join-Path $Tmp $Archive

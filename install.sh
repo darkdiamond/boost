@@ -48,7 +48,25 @@ if [ -f "$FROM" ]; then
   [ -f "$TMP/boost" ] || { echo "archive missing 'boost' binary" >&2; exit 1; }
 else
   if [ "$FROM" = "latest" ]; then
-    TAG="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest" | sed 's#.*/tag/##')"
+    TAG=""
+    if command -v jq >/dev/null 2>&1; then
+      api_curl=(curl -fsSL)
+      if [ -n "${GITHUB_TOKEN:-}" ]; then
+        api_curl+=(-H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json")
+      elif [ -n "${GH_TOKEN:-}" ]; then
+        api_curl+=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
+      fi
+      # ponytail: unauthenticated api.github.com often 403s; fall through to releases/latest.
+      releases_json="$("${api_curl[@]}" "https://api.github.com/repos/$REPO/releases?per_page=30" 2>/dev/null)" || releases_json=""
+      if [ -n "$releases_json" ]; then
+        TAG="$(printf '%s' "$releases_json" \
+          | jq -r --arg asset "$ARCHIVE" '.[] | select(any(.assets[]?; .name == $asset)) | .tag_name' \
+          | head -1)"
+      fi
+    fi
+    if [ -z "$TAG" ]; then
+      TAG="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest" | sed 's#.*/tag/##')"
+    fi
     [ -n "$TAG" ] || { echo "could not resolve latest release tag" >&2; exit 1; }
   else
     TAG="$FROM"
