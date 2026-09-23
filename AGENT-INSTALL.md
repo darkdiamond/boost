@@ -180,17 +180,21 @@ pi install npm:pi-jfrog-boost
 ```
 
 Add `-l` to scope it to the current project. Restart pi or run `/reload` so the
-extension loads.
+extension loads. If preflight found it already installed, `pi update` picks up
+new releases instead.
 
 Install it only when preflight found pi and the user agreed. Tell them first
 that [pi-jfrog-boost](https://github.com/darkdiamond/pi-jfrog-boost) is a
 community package (MIT), not built or supported by JFrog. It installs nothing
 itself: it runs the `boost` binary already on the machine, accepts no terms on
 the user's behalf, and touches no other agent's configuration. The safety
-boundaries above hold — it is fail-open, and `DISABLE_BOOST=1` still applies.
+boundaries above hold — it is fail-open, and `DISABLE_BOOST=1` still applies,
+for a whole session or prefixed to a single command.
 
 It filters pi's `bash`, `powershell`, `read`, `grep`, `find`, and `ls` output,
-and retries documents pi rejects as binary through `boost read`.
+failing commands included, and keeps pi's own continuation notices intact.
+pi's `read` returns PDFs and Office files as raw bytes; the package converts
+them through `boost read` instead.
 
 ## Verify
 
